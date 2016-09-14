@@ -2,6 +2,7 @@ globals [
   transaction-receipts
   system-out
   interest-rate
+  total-cash
   angle
   unit-test-results
   plot-cash
@@ -25,8 +26,8 @@ to setup
   set goods-degrade-factor 1
   set services-degrade-factor 1
   set angle 100
-  set radius 1
-  create-people 2
+  set radius 9
+  create-people 10
   [
     set cash 10
     set credit 0
@@ -34,7 +35,7 @@ to setup
     set goods 10
     set services 10
     set financialassets 10
-    set hustle random 3 + 1
+    set hustle ((random 10) / 10 ) + 1
     set spendinghabit random 3 + 1
     set shape "person"
     setxy random-xcor random-ycor
@@ -75,6 +76,7 @@ to go
       ] [
         set services (services + hustle)
       ]
+
       set system-out (word system-out who "+>" addToGoodsOrServices ":" hustle)
 
     ]
@@ -82,6 +84,11 @@ to go
       set heading (heading + (angle / 2) - (random angle ))
       forward 1
     ]
+    let total-cash-for-tick
+    ask people [
+      set total-cash-for-tick total-cash-for-tick + cash
+    ]
+    set total-cash total-cash-for-tick
 end
 
 to borrow [me lender]
@@ -378,7 +385,7 @@ radius
 radius
 0
 10
-1
+9
 1
 1
 NIL
@@ -415,7 +422,7 @@ value
 20.0
 true
 true
-"" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]\nif (nobody != person plot-who) [\nset plot-cash ([cash] of person plot-who)\nset plot-credit ([credit] of person plot-who)\nset plot-spentcredit ([spentcredit] of person plot-who)\nset plot-goods ([goods] of person plot-who)\nset plot-services ([services] of person plot-who)\nset plot-financialassets ([financialassets] of person plot-who)\n]"
+"" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]\nif (nobody != person plot-who) [\nwatch person plot-who\nset plot-cash ([cash] of person plot-who)\nset plot-credit ([credit] of person plot-who)\nset plot-spentcredit ([spentcredit] of person plot-who)\nset plot-goods ([goods] of person plot-who)\nset plot-services ([services] of person plot-who)\nset plot-financialassets ([financialassets] of person plot-who)\n]"
 PENS
 " cash" 1.0 0 -13840069 true "" "plot plot-cash"
 " credit" 1.0 0 -13791810 true "" "plot plot-credit"
@@ -427,14 +434,14 @@ PENS
 SLIDER
 10
 119
-182
+187
 152
 goods-degrade-factor
 goods-degrade-factor
 0
-10
+2
 1
-1
+0.1
 1
 NIL
 HORIZONTAL
@@ -442,14 +449,14 @@ HORIZONTAL
 SLIDER
 10
 154
-183
+191
 187
 services-degrade-factor
 services-degrade-factor
 0
-10
+2
 1
-1
+0.1
 1
 NIL
 HORIZONTAL
