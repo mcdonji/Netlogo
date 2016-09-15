@@ -84,7 +84,7 @@ to go
       set heading (heading + (angle / 2) - (random angle ))
       forward 1
     ]
-    let total-cash-for-tick
+    let total-cash-for-tick 0
     ask people [
       set total-cash-for-tick total-cash-for-tick + cash
     ]
@@ -440,7 +440,7 @@ goods-degrade-factor
 goods-degrade-factor
 0
 2
-1
+0.5
 0.1
 1
 NIL
@@ -455,7 +455,7 @@ services-degrade-factor
 services-degrade-factor
 0
 2
-1
+0.5
 0.1
 1
 NIL
@@ -510,6 +510,24 @@ transaction-receipts
 17
 1
 11
+
+PLOT
+13
+336
+173
+456
+Cash
+ticks
+total-cash
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]"
+PENS
+"default" 1.0 0 -13840069 true "" "plot total-cash"
 
 @#$#@#$#@
 ## WHAT IS IT?
