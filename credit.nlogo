@@ -23,12 +23,25 @@ patches-own [transaction]
 
 to setup
   clear-all
+  initialize-variables
+  create-people 10 [setup-people]
+  create-lenders 1 [
+    set cash 1000
+    set asset 0
+    set shape "house"
+    setxy random-xcor random-ycor
+  ]
+  reset-ticks
+end
+
+to initialize-variables
   set goods-degrade-factor 1
   set services-degrade-factor 1
   set angle 100
   set radius 9
-  create-people 10
-  [
+end
+
+to setup-people
     set cash 10
     set credit 0
     set spentcredit 0
@@ -39,15 +52,9 @@ to setup
     set spendinghabit random 3 + 1
     set shape "person"
     setxy random-xcor random-ycor
-  ]
-  create-lenders 1 [
-    set cash 1000
-    set asset 0
-    set shape "house"
-    setxy random-xcor random-ycor
-  ]
-  reset-ticks
 end
+
+
 
 to go
   tick
@@ -440,7 +447,7 @@ goods-degrade-factor
 goods-degrade-factor
 0
 2
-0.5
+1
 0.1
 1
 NIL
@@ -455,7 +462,7 @@ services-degrade-factor
 services-degrade-factor
 0
 2
-0.5
+1
 0.1
 1
 NIL
