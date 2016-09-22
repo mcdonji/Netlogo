@@ -5,13 +5,22 @@ to setup
   clear-all
   initialize-globals
   create-turtles number-of-agents [setup-turtles]
-
   reset-ticks
 end
 
 to go
+
+  let number-of-adopters 0
   ask turtles [
-    decide-to-adopt
+    if (adopted?)
+    [
+      set number-of-adopters number-of-adopters + 1
+    ]
+  ]
+  let fraction-of-adoption number-of-adopters / number-of-agents
+  print fraction-of-adoption
+  ask turtles [
+    decide-to-adopt fraction-of-adoption
   ]
   tick
 
@@ -25,14 +34,25 @@ to setup-turtles
     set adopted? false;
     set color red
     set shape "person"
-    set threshold random 9
+    set threshold ((random 9) / 10)
     setxy random-xcor random-ycor
 end
 
-to decide-to-adopt
-    if (random 11 > threshold) [
-      set adopted? true
-      set color green
+to decide-to-adopt [fraction-of-adoption]
+    ifelse (use-broadcast-influence)
+    [
+      if (threshold < broadcast-influence)
+      [
+        set adopted? true
+        set color green
+      ]
+    ]
+    [
+      if (threshold < (social-influence * fraction-of-adoption))
+      [
+        set adopted? true
+        set color green
+      ]
     ]
 end
 @#$#@#$#@
@@ -128,6 +148,47 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+5
+94
+194
+127
+broadcast-influence
+broadcast-influence
+0
+1
+0.8
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+5
+132
+194
+165
+social-influence
+social-influence
+1
+10
+4
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+6
+170
+195
+203
+use-broadcast-influence
+use-broadcast-influence
+0
+1
+-1000
 
 @#$#@#$#@
 ## WHAT IS IT?
