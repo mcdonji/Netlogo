@@ -10,16 +10,11 @@ end
 
 to go
 
-  let number-of-adopters 0
-  ask turtles [
-    if (adopted?)
-    [
-      set number-of-adopters number-of-adopters + 1
-    ]
-  ]
+  let number-of-adopters count turtles with [ adopted? ]
   let fraction-of-adoption number-of-adopters / number-of-agents
+  if fraction-of-adoption > 0.99 [ stop ]
   print fraction-of-adoption
-  ask turtles [
+  ask turtles with [ not adopted? ] [
     decide-to-adopt fraction-of-adoption
   ]
   tick
@@ -34,26 +29,35 @@ to setup-turtles
     set adopted? false;
     set color red
     set shape "person"
-    set threshold ((random 9) / 10)
+    set threshold random-float 1.0
     setxy random-xcor random-ycor
 end
 
 to decide-to-adopt [fraction-of-adoption]
-    ifelse (use-broadcast-influence)
+  let decision-threshold max-min (random-normal threshold .1) 0 1.0
+
+    if ( decision-threshold < broadcast-influence)
     [
-      if (threshold < broadcast-influence)
-      [
-        set adopted? true
-        set color green
-      ]
+      set adopted? true
+      set color green
     ]
+
+    if (not adopted? and (decision-threshold < (social-influence * fraction-of-adoption)))
     [
-      if (threshold < (social-influence * fraction-of-adoption))
-      [
-        set adopted? true
-        set color green
-      ]
+      set adopted? true
+      set color blue
     ]
+
+end
+
+to-report max-min [value minimum maximum]
+  if value < minimum [
+    set value minimum
+  ]
+  if value > maximum [
+    set value maximum
+  ]
+  report value
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -157,9 +161,9 @@ SLIDER
 broadcast-influence
 broadcast-influence
 0
-1
-0.8
-0.1
+1.0
+0.01
+0.01
 1
 NIL
 HORIZONTAL
@@ -171,24 +175,33 @@ SLIDER
 165
 social-influence
 social-influence
-1
-10
-4
-1
+0
+1.0
+0.65
+0.05
 1
 NIL
 HORIZONTAL
 
-SWITCH
-6
-170
-195
-203
-use-broadcast-influence
-use-broadcast-influence
-0
-1
--1000
+PLOT
+5
+169
+205
+319
+Adoption
+ticks
+Percent Adopted
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"B" 1.0 0 -13791810 true "" "plot count turtles with [adopted? and color = blue]"
+"S" 1.0 0 -13840069 true "" "plot count turtles with [adopted? and color = green]"
+"All" 1.0 0 -11221820 true "" "plot count turtles with [adopted?]"
 
 @#$#@#$#@
 ## WHAT IS IT?
