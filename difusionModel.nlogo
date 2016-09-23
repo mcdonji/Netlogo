@@ -1,19 +1,29 @@
-turtles-own [adopted? threshold]
 
+turtles-own [adopted? threshold]
 
 to setup
   clear-all
+  reset-adoption
   initialize-globals
   create-turtles number-of-agents [setup-turtles]
+  create-network
   reset-ticks
 end
+
+to reset-adoption
+  ask turtles [
+    set adopted? false
+    set color red
+  ]
+  clear-all-plots
+end
+
 
 to go
 
   let number-of-adopters count turtles with [ adopted? ]
   let fraction-of-adoption number-of-adopters / number-of-agents
   if fraction-of-adoption > 0.99 [ stop ]
-  print fraction-of-adoption
   ask turtles with [ not adopted? ] [
     decide-to-adopt fraction-of-adoption
   ]
@@ -33,6 +43,17 @@ to setup-turtles
     setxy random-xcor random-ycor
 end
 
+to create-network
+  ask turtles [
+    create-link-with one-of other turtles
+    if (random 5 = 1)
+    [
+      create-links-with other turtles-on patches in-radius 3
+    ]
+  ]
+end
+
+
 to decide-to-adopt [fraction-of-adoption]
   let decision-threshold max-min (random-normal threshold .1) 0 1.0
 
@@ -42,7 +63,11 @@ to decide-to-adopt [fraction-of-adoption]
       set color green
     ]
 
-    if (not adopted? and (decision-threshold < (social-influence * fraction-of-adoption)))
+    let number-neighbors count link-neighbors
+    let number-neighbors-adopters count link-neighbors with [ adopted? ]
+    let fraction-of-adopters number-neighbors-adopters / number-neighbors
+
+    if (not adopted? and (decision-threshold < (social-influence * fraction-of-adopters)))
     [
       set adopted? true
       set color blue
@@ -154,40 +179,25 @@ NIL
 1
 
 SLIDER
-5
-94
-194
-127
+8
+125
+197
+158
 broadcast-influence
 broadcast-influence
 0
 1.0
 0.01
 0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-5
-132
-194
-165
-social-influence
-social-influence
-0
-1.0
-0.65
-0.05
 1
 NIL
 HORIZONTAL
 
 PLOT
-5
-169
-205
-319
+10
+197
+210
+347
 Adoption
 ticks
 Percent Adopted
@@ -202,6 +212,38 @@ PENS
 "B" 1.0 0 -13791810 true "" "plot count turtles with [adopted? and color = blue]"
 "S" 1.0 0 -13840069 true "" "plot count turtles with [adopted? and color = green]"
 "All" 1.0 0 -11221820 true "" "plot count turtles with [adopted?]"
+
+SLIDER
+9
+160
+197
+193
+social-influence
+social-influence
+0
+1.0
+1
+0.01
+1
+NIL
+HORIZONTAL
+
+BUTTON
+8
+91
+72
+124
+Reset
+reset-adoption
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
