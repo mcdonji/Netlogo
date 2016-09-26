@@ -23,12 +23,25 @@ patches-own [transaction]
 
 to setup
   clear-all
+  initialize-variables
+  create-people number-of-people [setup-people]
+  create-lenders 1 [
+    set cash 1000
+    set asset 0
+    set shape "house"
+    setxy random-xcor random-ycor
+  ]
+  reset-ticks
+end
+
+to initialize-variables
   set goods-degrade-factor 1
   set services-degrade-factor 1
   set angle 100
   set radius 9
-  create-people 10
-  [
+end
+
+to setup-people
     set cash 10
     set credit 0
     set spentcredit 0
@@ -39,14 +52,6 @@ to setup
     set spendinghabit random 3 + 1
     set shape "person"
     setxy random-xcor random-ycor
-  ]
-  create-lenders 1 [
-    set cash 1000
-    set asset 0
-    set shape "house"
-    setxy random-xcor random-ycor
-  ]
-  reset-ticks
 end
 
 to go
@@ -373,15 +378,15 @@ NIL
 1
 
 SLIDER
-8
-82
-180
-115
+14
+126
+186
+159
 radius
 radius
 0
 10
-9
+8
 1
 1
 NIL
@@ -405,10 +410,10 @@ NIL
 1
 
 PLOT
-11
-199
-186
-332
+17
+243
+192
+376
 Person
 tick
 value
@@ -428,10 +433,10 @@ PENS
 " goods" 1.0 0 -6459832 true "" "plot plot-goods"
 
 SLIDER
-10
-119
-187
-152
+16
+163
+193
+196
 goods-degrade-factor
 goods-degrade-factor
 0
@@ -443,10 +448,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-10
-154
-191
-187
+16
+198
+197
+231
 services-degrade-factor
 services-degrade-factor
 0
@@ -458,10 +463,10 @@ NIL
 HORIZONTAL
 
 MONITOR
-11
-519
-666
-564
+17
+563
+672
+608
 Output
 system-out
 17
@@ -497,10 +502,10 @@ plot-who
 Number
 
 MONITOR
-12
-475
-667
-520
+18
+519
+673
+564
 Txns
 transaction-receipts
 17
@@ -508,10 +513,10 @@ transaction-receipts
 11
 
 PLOT
-13
-336
-173
-456
+19
+380
+179
+500
 Cash
 ticks
 total-cash
@@ -524,6 +529,21 @@ false
 "" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]"
 PENS
 "default" 1.0 0 -13840069 true "" "plot total-cash"
+
+SLIDER
+13
+86
+185
+119
+number-of-people
+number-of-people
+0
+100
+10
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
