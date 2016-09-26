@@ -80,10 +80,6 @@ to go
       set system-out (word system-out who "+>" addToGoodsOrServices ":" hustle)
 
     ]
-    ask lenders [
-      set heading (heading + (angle / 2) - (random angle ))
-      forward 1
-    ]
     let total-cash-for-tick 0
     ask people [
       set total-cash-for-tick total-cash-for-tick + cash
@@ -422,7 +418,7 @@ value
 20.0
 true
 true
-"" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]\nif (nobody != person plot-who) [\nwatch person plot-who\nset plot-cash ([cash] of person plot-who)\nset plot-credit ([credit] of person plot-who)\nset plot-spentcredit ([spentcredit] of person plot-who)\nset plot-goods ([goods] of person plot-who)\nset plot-services ([services] of person plot-who)\nset plot-financialassets ([financialassets] of person plot-who)\n]"
+"" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]\nif (nobody != person plot-who) [\nwatch person plot-who\ninspect person plot-who\nset plot-cash ([cash] of person plot-who)\nset plot-credit ([credit] of person plot-who)\nset plot-spentcredit ([spentcredit] of person plot-who)\nset plot-goods ([goods] of person plot-who)\nset plot-services ([services] of person plot-who)\nset plot-financialassets ([financialassets] of person plot-who)\n]"
 PENS
 " cash" 1.0 0 -13840069 true "" "plot plot-cash"
 " credit" 1.0 0 -13791810 true "" "plot plot-credit"
@@ -440,7 +436,7 @@ goods-degrade-factor
 goods-degrade-factor
 0
 2
-0.5
+1
 0.1
 1
 NIL
@@ -455,7 +451,7 @@ services-degrade-factor
 services-degrade-factor
 0
 2
-0.5
+1
 0.1
 1
 NIL
