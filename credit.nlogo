@@ -14,6 +14,7 @@ globals [
   plot-financialassets
   plot-hustle
   plot-spendinghabit
+  radius
 ]
 
 breed [people person]
@@ -24,6 +25,7 @@ patches-own [transaction]
 
 to setup
   clear-all
+  set radius 9
   initialize-variables
   create-people number-of-people [setup-people]
   create-lenders 1 [
@@ -329,11 +331,11 @@ end
 GRAPHICS-WINDOW
 189
 11
-643
-486
+445
+288
 16
 16
-13.455
+7.455
 1
 10
 1
@@ -354,10 +356,10 @@ ticks
 30.0
 
 BUTTON
-68
-45
-123
-78
+122
+46
+177
+79
 Go
 go
 T
@@ -371,10 +373,10 @@ NIL
 1
 
 BUTTON
-9
-10
-65
-44
+5
+46
+61
+80
 Setup
 setup
 NIL
@@ -387,26 +389,11 @@ NIL
 NIL
 1
 
-SLIDER
-11
-115
-183
-148
-radius
-radius
-0
-10
-9
-1
-1
-NIL
-HORIZONTAL
-
 BUTTON
-68
-10
-123
-43
+64
+46
+119
+79
 Go
 go
 NIL
@@ -420,10 +407,10 @@ NIL
 1
 
 PLOT
-11
-222
-186
-355
+8
+159
+183
+288
 Person
 tick
 value
@@ -443,10 +430,10 @@ PENS
 " goods" 1.0 0 -6459832 true "" "plot plot-goods"
 
 SLIDER
-11
-151
-184
-184
+62
+84
+177
+117
 goods-degrade-factor
 goods-degrade-factor
 0
@@ -458,10 +445,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-10
-187
-184
-220
+63
+119
+175
+152
 services-degrade-factor
 services-degrade-factor
 0
@@ -472,28 +459,11 @@ services-degrade-factor
 NIL
 HORIZONTAL
 
-BUTTON
-9
-45
-64
-78
-UT
-run-unit-tests
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
 INPUTBOX
-126
-11
-181
-77
+7
+83
+58
+154
 plot-who
 0
 1
@@ -501,25 +471,25 @@ plot-who
 Number
 
 SLIDER
+5
 10
-80
-182
-113
+177
+43
 number-of-people
 number-of-people
 0
 100
-10
+25
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-12
-359
-187
-489
+9
+293
+184
+460
 Txns
 Ticks
 TXNS
@@ -532,6 +502,24 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot number-of-transactions"
+
+PLOT
+190
+295
+388
+459
+GDP
+Ticks
+GDP
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot gdp"
 
 @#$#@#$#@
 ## WHAT IS IT?
