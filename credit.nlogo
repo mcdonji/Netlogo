@@ -10,8 +10,6 @@ globals [
   plot-credit
   plot-spentcredit
   plot-goods
-  plot-services
-  plot-financialassets
   plot-hustle
   plot-spendinghabit
   radius
@@ -19,7 +17,7 @@ globals [
 
 breed [people person]
 breed [lenders lender]
-people-own [cash credit spentcredit goods services financialassets hustle spendinghabit]
+people-own [cash credit spentcredit goods hustle spendinghabit]
 lenders-own [cash asset]
 patches-own [transaction]
 
@@ -41,7 +39,6 @@ end
 
 to initialize-variables
   set goods-degrade-factor 1
-  set services-degrade-factor 1
   set angle 100
   set radius 9
 end
@@ -51,8 +48,6 @@ to setup-people
     set credit 0
     set spentcredit 0
     set goods 10
-    set services 10
-    set financialassets 10
     set hustle ((random 10) / 10 ) + 1
     set spendinghabit random 3 + 1
     set shape "person"
@@ -68,7 +63,7 @@ to go
     set heading (heading + (angle / 2) - (random angle ))
     forward 1
     ask people-on patches in-radius radius [
-      transact myself self (random 2) (random 3)
+      transact myself self (random 2)
     ]
     ask lenders-on patches in-radius radius [
       borrow myself self
@@ -76,22 +71,13 @@ to go
     if (goods > 1) [
       set goods (goods - goods-degrade-factor)
     ]
-    if (services > 1) [
-      set services (services - services-degrade-factor)
-    ]
-
-    let addToGoodsOrServices random 2
-    ifelse addToGoodsOrServices = 0 [
-      set goods (goods + hustle)
-    ] [
-      set services (services + hustle)
-    ]
+    set goods (goods + hustle)
   ]
   print transaction-receipts
   let total-cash-for-tick 0
   ask people [
     set total-cash-for-tick total-cash-for-tick + cash
-    set gdp gdp + goods + services + financialassets
+    set gdp gdp + goods
   ]
   set total-cash total-cash-for-tick
 
@@ -106,7 +92,7 @@ end
 to transact [me otherperson willTransactChance purchaseType]
   let willTransact (1 = willTransactChance) and ([who] of me != [who] of otherperson)
   let amountToTransact [spendinghabit] of me
-  let canTransact ((totalCashCredit me) > amountToTransact) and ((totalGoodsServicesFinanicalAssets otherperson) > amountToTransact)
+  let canTransact ((totalCashCredit me) > amountToTransact) and (([goods] of otherperson) > amountToTransact)
   if willTransact and canTransact [
     let amountOfCashToSpend amountToTransact
     let amountOfCashLeft [cash] of me - amountToTransact
