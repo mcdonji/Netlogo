@@ -1,50 +1,77 @@
 globals [
   transaction-receipts  ; receipts are a way to visualize who is transacting how much with who
-  number-of-transactions-in-tick
-  interest-rate
-  total-cash
   gdp
   max-defaults
-  unit-test-results
-  plot-cash
+  radius ; the radius in which people will transact. Usefull to set to 20 if you are investigating a small number of people in economy
+  productivity-growth
+  productivity
+  max-goods-production
+  total-cash
+  min-consumable-goods-tolerable
+  loan-length
+  transaction-volume
+  print-transaction-recepts?
+  plot-cash ; optimize plot
   plot-credit
   plot-debt
   plot-defaults
-  plot-goods
-  radius
-  productivity-growth
-  productivity
-  max-goods-per-person
+  plot-produced-goods
+  plot-consumable-goods
+  unit-test-results
 ]
 
 breed [people person]
 breed [lenders lender]
-people-own [cash credit debt defaults pgoods hustle production spendinghabit]
-lenders-own [cash asset]
-patches-own [transaction]
+
+people-own
+[
+  cash
+  credit
+  debt
+  defaults
+  produced-goods
+  consumable-goods
+  hustle
+  production
+]
+
+lenders-own
+[
+  cash
+  asset
+]
+
+links-own
+[
+  with-person
+  loan-amount
+  loan-amount-with-interest
+  loan-maturity-tick
+]
 
 to setup
   clear-all
   initialize-variables
   create-people number-of-people [setup-people]
-  create-lenders 3 [
+  create-lenders num-lenders [
     set cash 1000
     set asset 0
     set shape "house"
     setxy random-xcor random-ycor
   ]
-;  watch person plot-who
-;  inspect person plot-who
   reset-ticks
 end
 
 to initialize-variables
-  set goods-degrade-factor 0.9
+  set goods-degrade-factor 0.7
   set max-defaults 2
   set radius 5
   set productivity 0.01
   set productivity-growth 0.001
-  set max-goods-per-person 20
+  set max-goods-production 10
+  set min-consumable-goods-tolerable 10
+  set loan-length 10
+  set print-transaction-recepts? false
 end
 
 to setup-people
@@ -52,94 +79,146 @@ to setup-people
     set credit 0
     set debt 0
     set defaults 0
-    set goods 10
+    set produced-goods 10
+    set consumable-goods 0
     set hustle ((random 10) / 10 ) + 1
     set production hustle
-    set spendinghabit random 3 + 1
     set shape "person"
     setxy random-xcor random-ycor
 end
 
 to go
   set transaction-receipts ""
-  set number-of-transactions-in-tick  0
+  set transaction-volume 0
   set gdp 0
+  set total-cash max [cash] of people
 
   set productivity productivity + productivity-growth
-  ask people [
+
+  ask lenders
+  [
+    let lender self
+    ask my-links with [loan-maturity-tick <= ticks]
+    [
+      let loan self
+      ask lender [ set cash cash + [loan-amount-with-interest] of loan ]
+      ask person with-person
+      [
+        set cash cash - [loan-amount-with-interest] of loan
+        set debt debt - [loan-amount] of loan
+        if (debt < 0)
+        [
+          set credit credit + debt
+          set debt 0
+        ]
+      ]
+      die
+    ]
+  ]
+
+  ask people
+  [
     set heading heading + random-float 360
     forward 1
+    set-wealth-color
 
     let others-count (count people-on patches in-radius radius) - 1
     if (others-count > 0)
     [
       let amount-to-transact-per-person ((total-cash-credit self) / others-count)
-      ;ask people-on patches in-radius radius [
-      ;  transact myself self amount-to-transact-per-person
-      ;]
+      ask people-on patches in-radius radius
+      [
+        transact myself self amount-to-transact-per-person
+      ]
     ]
 
-    ask lenders-on patches in-radius radius [
+    ask lenders-on patches in-radius radius
+    [
       borrow myself
     ]
     set production productivity + (random-normal hustle (0.1 * hustle))
-    set goods (goods + production)
-    if (goods > 1) [
-      set goods (goods * goods-degrade-factor)
+    set produced-goods (produced-goods + production)
+    ; stop producing goods if person cannot sell them
+    if (produced-goods > max-goods-production)
+    [
+      set produced-goods max-goods-production
     ]
-    set gdp gdp + goods
+    set max-goods-production max-goods-production + productivity-growth
+    set consumable-goods (consumable-goods * goods-degrade-factor)
+    if (consumable-goods < 0.1 )
+    [
+      set consumable-goods 0
+    ]
+    set gdp gdp + produced-goods
   ]
-  if (transaction-receipts != "" ) [
+
+  if (transaction-receipts != "" and print-transaction-recepts? )
+  [
     print transaction-receipts
   ]
+
   tick
 
 end
 
 to borrow [me]
-  ; If I am low on cash
-  if ([cash] of me) > ([spendinghabit] of me)
-     ; and if I haven't defaulted too much
-     and ([defaults] of me <= max-defaults)
-     ; and if interest rates are low enough
-     ;(interest-rate )
+  let possible-production ((([production] of me) * loan-length) + [produced-goods] of me - [debt] of me)
+  let possible-amount-to-borrow possible-production / loan-length
+  ; If the person could possibly borrow
+  if  (possible-production > interest-rate * loan-length)
+    ; and the person wants to buy more stuff
+    and ([consumable-goods] of me) < min-consumable-goods-tolerable
+    and (cash > possible-amount-to-borrow)
+    and ((link who [who] of me) = nobody)
+    and ([cash] of me > 0)
   [
-    let amount-to-borrow 2 * ([spendinghabit] of me)
-;    ask me [ set credit ([credit] of me + amount-to-borrow) ]
-;    set cash (cash - amount-to-borrow)
-    ;create-link-with me
+    ;print (word "B-" [who] of me "->" who ":" possible-amount-to-borrow ":" (interest-rate * loan-length) ":" [consumable-goods] of me)
+    ask me [ set credit ([credit] of me + possible-amount-to-borrow) ]
+    set cash (cash - possible-amount-to-borrow)
+    create-link-with me
+    let debt-link link who [who] of me
+    ask debt-link
+    [
+      ;set hidden? true
+      set with-person [who] of me
+      set loan-amount possible-amount-to-borrow
+      set loan-amount-with-interest possible-amount-to-borrow + (interest-rate * loan-length)
+      set loan-maturity-tick ticks + loan-length
+    ]
   ]
 end
 
 
 to transact [me otherperson amount-to-transact]
   let other-person-is-not-me ([who] of me != [who] of otherperson)
-  if (([goods] of otherperson) < amount-to-transact) [
-    set amount-to-transact [goods] of otherperson
+  if (([produced-goods] of otherperson) < amount-to-transact)
+  [
+    set amount-to-transact [produced-goods] of otherperson
   ]
 
-  if other-person-is-not-me and (amount-to-transact > 0) [
-    let amountOfCashToSpend amount-to-transact
-    let amountOfCashLeft [cash] of me - amount-to-transact
-    let amountOfCreditToSpend 0
-    if amountOfCashLeft < 0 [
-      set amountOfCashToSpend [cash] of me
-      set amountOfCreditToSpend amount-to-transact - amountOfCashToSpend
+  if other-person-is-not-me and (amount-to-transact > 0)
+  [
+    let amount-of-cash-to-spend amount-to-transact
+    let amount-of-cash-left [cash] of me - amount-to-transact
+    let amount-of-credit-to-spend 0
+    if amount-of-cash-left < 0 [
+      set amount-of-cash-to-spend [cash] of me
+      set amount-of-credit-to-spend amount-to-transact - amount-of-cash-to-spend
     ]
 
     ask otherperson [ set cash ([cash] of otherperson + amount-to-transact) ]
-    ask me [ set cash ([cash] of me - amountOfCashToSpend) ]
-    ask me [ set credit ([credit] of me - amountOfCreditToSpend) ]
-    ask me [ set debt ([debt] of me + amountOfCreditToSpend) ]
+    ask me [ set cash ([cash] of me - amount-of-cash-to-spend) ]
+    ask me [ set credit ([credit] of me - amount-of-credit-to-spend) ]
+    ask me [ set debt ([debt] of me + amount-of-credit-to-spend) ]
 
-    let amountOfGoodsToBuy amount-to-transact
+    let amount-of-goods-to-buy amount-to-transact
 
-    let transaction-receipt (word "T-" [who] of me "->" [who] of otherperson ":" amountOfGoodsToBuy " ")
+    let transaction-receipt (word "T-" [who] of me "->" [who] of otherperson ":" amount-of-goods-to-buy " cash:" amount-of-cash-to-spend " credit:" amount-of-credit-to-spend)
 
-    ask otherperson [ set goods (goods - amountOfGoodsToBuy) ]
-    ask me [ set goods (goods + amountOfGoodsToBuy) ]
+    ask otherperson [ set produced-goods (produced-goods - amount-of-goods-to-buy) ]
+    ask me [ set consumable-goods (consumable-goods + amount-of-goods-to-buy) ]
     set transaction-receipts word transaction-receipts transaction-receipt
-    set number-of-transactions-in-tick number-of-transactions-in-tick + 1
+    set transaction-volume transaction-volume + amount-of-goods-to-buy
   ]
 end
 
@@ -148,7 +227,21 @@ to-report total-cash-credit [me]
 end
 
 to-report netWorth [me]
- report [goods] of me + [cash] of me
+ report [produced-goods] of me + [cash] of me - [debt] of me
+end
+
+to set-wealth-color
+  ifelse (cash <= total-cash / 3)
+  [
+    set color red
+  ] [
+    ifelse (cash <= (total-cash * 2 / 3))
+    [
+      set color yellow
+    ] [
+      set color blue
+    ]
+  ]
 end
 
 
@@ -176,22 +269,23 @@ to-report test-transact-goods
     set cash 10
     set credit 0
     set debt 0
-    set goods 10
-    set spendinghabit 3
+    set produced-goods 0
+    set consumable-goods 10
   ]
   create-people 1 [
     set cash 10
     set credit 0
     set debt 0
-    set goods 10
+    set produced-goods 10
+    set consumable-goods 0
   ]
   let me (person 0)
   let otherperson (person 1)
-  transact me otherperson 7
+  transact me otherperson 3
   if ([cash] of me != 7) [ set results (word results " Expected my cash to decrease from 10 to 7 but was " [cash] of me)  ]
-  if ([goods] of me != 13) [ set results (word results " Expected my goods to increase from 10 to 13 but was " [goods] of me)  ]
+  if ([consumable-goods] of me != 13) [ set results (word results " Expected my consumable-goods to increase from 10 to 13 but was " [consumable-goods] of me)  ]
   if ([cash] of otherperson != 13) [ set results (word results " Expected others cash to increase from 10 to 13 but was " [cash] of otherperson)  ]
-  if ([goods] of otherperson != 7) [ set results (word results " Expected others goods to decrease from 10 to 7 but was " [goods] of otherperson ) ]
+  if ([produced-goods] of otherperson != 7) [ set results (word results " Expected others produced-goods to decrease from 10 to 7 but was " [produced-goods] of otherperson ) ]
 
   ifelse (results != "" ) [ set results (word "FAIL test-transact-goods " results) ] [set results "PASS test-transact-goods "]
   report results
@@ -233,9 +327,9 @@ ticks
 
 BUTTON
 122
-46
+81
 177
-79
+114
 Go
 go
 T
@@ -250,9 +344,9 @@ NIL
 
 BUTTON
 5
-46
+81
 61
-80
+115
 Setup
 setup
 NIL
@@ -267,9 +361,9 @@ NIL
 
 BUTTON
 64
-46
+81
 119
-79
+114
 Go
 go
 NIL
@@ -284,9 +378,9 @@ NIL
 
 PLOT
 8
-159
-178
-279
+194
+175
+314
 Person
 tick
 value
@@ -296,23 +390,24 @@ value
 20.0
 true
 true
-"" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]\nif (nobody != person plot-who) [\nset plot-cash ([cash] of person plot-who)\nset plot-credit ([credit] of person plot-who)\nset plot-debt ([debt] of person plot-who)\nset plot-goods ([goods] of person plot-who)\n]"
+"" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]\nif (nobody != person plot-who) [\nset plot-cash ([cash] of person plot-who)\nset plot-credit ([credit] of person plot-who)\nset plot-debt ([debt] of person plot-who)\nset plot-produced-goods ([produced-goods] of person plot-who)\nset plot-consumable-goods ([consumable-goods] of person plot-who)\n]"
 PENS
 " cash" 1.0 0 -13840069 true "" "plot plot-cash"
 " credit" 1.0 0 -13791810 true "" "plot plot-credit"
-" spentcredit" 1.0 0 -7500403 true "" "plot plot-debt"
-" goods" 1.0 0 -6459832 true "" "plot plot-goods"
+" debt" 1.0 0 -7500403 true "" "plot plot-debt"
+" consumable" 1.0 0 -6459832 true "" "plot plot-consumable-goods"
+"produced" 1.0 0 -2674135 true "" "plot plot-produced-goods"
 
 SLIDER
 62
-84
+119
 177
-117
+152
 goods-degrade-factor
 goods-degrade-factor
 0
 4
-0.9
+0.7
 0.1
 1
 NIL
@@ -320,11 +415,11 @@ HORIZONTAL
 
 INPUTBOX
 7
-83
+118
 58
-154
+189
 plot-who
-0
+1
 1
 0
 Number
@@ -338,7 +433,7 @@ number-of-people
 number-of-people
 0
 100
-3
+100
 1
 1
 NIL
@@ -346,9 +441,9 @@ HORIZONTAL
 
 PLOT
 8
-288
-206
-452
+323
+176
+453
 GDP per Tick
 Ticks
 GDP
@@ -361,6 +456,54 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot gdp"
+
+SLIDER
+62
+155
+176
+188
+interest-rate
+interest-rate
+0
+1
+0.05
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+5
+45
+177
+78
+num-lenders
+num-lenders
+0
+10
+3
+1
+1
+NIL
+HORIZONTAL
+
+PLOT
+191
+324
+351
+454
+Transaction Volume
+Ticks
+Vol
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot transaction-volume"
 
 @#$#@#$#@
 ## WHAT IS IT?
