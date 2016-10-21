@@ -1,187 +1,154 @@
 globals [
-  transaction-receipts
-  number-of-transactions
+  transaction-receipts  ; receipts are a way to visualize who is transacting how much with who
+  number-of-transactions-in-tick
   interest-rate
   total-cash
   gdp
-  angle
+  max-defaults
   unit-test-results
   plot-cash
   plot-credit
-  plot-spentcredit
+  plot-debt
+  plot-defaults
   plot-goods
-  plot-hustle
-  plot-spendinghabit
   radius
+  productivity-growth
+  productivity
+  max-goods-per-person
 ]
 
 breed [people person]
 breed [lenders lender]
-people-own [cash credit spentcredit goods hustle spendinghabit]
+people-own [cash credit debt defaults pgoods hustle production spendinghabit]
 lenders-own [cash asset]
 patches-own [transaction]
 
 to setup
   clear-all
-  set radius 9
   initialize-variables
   create-people number-of-people [setup-people]
-  create-lenders 1 [
+  create-lenders 3 [
     set cash 1000
     set asset 0
     set shape "house"
     setxy random-xcor random-ycor
   ]
 ;  watch person plot-who
-  inspect person plot-who
+;  inspect person plot-who
   reset-ticks
 end
 
 to initialize-variables
-  set goods-degrade-factor 1
-  set angle 100
-  set radius 9
+  set goods-degrade-factor 0.9
+  set max-defaults 2
+  set radius 5
+  set productivity 0.01
+  set productivity-growth 0.001
+  set max-goods-per-person 20
 end
 
 to setup-people
     set cash 10
     set credit 0
-    set spentcredit 0
+    set debt 0
+    set defaults 0
     set goods 10
     set hustle ((random 10) / 10 ) + 1
+    set production hustle
     set spendinghabit random 3 + 1
     set shape "person"
     setxy random-xcor random-ycor
 end
 
 to go
-  tick
   set transaction-receipts ""
-  set number-of-transactions 0
+  set number-of-transactions-in-tick  0
   set gdp 0
+
+  set productivity productivity + productivity-growth
   ask people [
-    set heading (heading + (angle / 2) - (random angle ))
+    set heading heading + random-float 360
     forward 1
-    ask people-on patches in-radius radius [
-      transact myself self (random 2)
+
+    let others-count (count people-on patches in-radius radius) - 1
+    if (others-count > 0)
+    [
+      let amount-to-transact-per-person ((total-cash-credit self) / others-count)
+      ;ask people-on patches in-radius radius [
+      ;  transact myself self amount-to-transact-per-person
+      ;]
     ]
+
     ask lenders-on patches in-radius radius [
-      borrow myself self
+      borrow myself
     ]
+    set production productivity + (random-normal hustle (0.1 * hustle))
+    set goods (goods + production)
     if (goods > 1) [
-      set goods (goods - goods-degrade-factor)
+      set goods (goods * goods-degrade-factor)
     ]
-    set goods (goods + hustle)
-  ]
-  print transaction-receipts
-  let total-cash-for-tick 0
-  ask people [
-    set total-cash-for-tick total-cash-for-tick + cash
     set gdp gdp + goods
   ]
-  set total-cash total-cash-for-tick
+  if (transaction-receipts != "" ) [
+    print transaction-receipts
+  ]
+  tick
 
 end
 
-to borrow [me lender]
-;  if (lenderThinksPersonIsCreditWorthy lender me) [
-
-;  ]
+to borrow [me]
+  ; If I am low on cash
+  if ([cash] of me) > ([spendinghabit] of me)
+     ; and if I haven't defaulted too much
+     and ([defaults] of me <= max-defaults)
+     ; and if interest rates are low enough
+     ;(interest-rate )
+  [
+    let amount-to-borrow 2 * ([spendinghabit] of me)
+;    ask me [ set credit ([credit] of me + amount-to-borrow) ]
+;    set cash (cash - amount-to-borrow)
+    ;create-link-with me
+  ]
 end
 
-to transact [me otherperson willTransactChance purchaseType]
-  let willTransact (1 = willTransactChance) and ([who] of me != [who] of otherperson)
-  let amountToTransact [spendinghabit] of me
-  let canTransact ((totalCashCredit me) > amountToTransact) and (([goods] of otherperson) > amountToTransact)
-  if willTransact and canTransact [
-    let amountOfCashToSpend amountToTransact
-    let amountOfCashLeft [cash] of me - amountToTransact
+
+to transact [me otherperson amount-to-transact]
+  let other-person-is-not-me ([who] of me != [who] of otherperson)
+  if (([goods] of otherperson) < amount-to-transact) [
+    set amount-to-transact [goods] of otherperson
+  ]
+
+  if other-person-is-not-me and (amount-to-transact > 0) [
+    let amountOfCashToSpend amount-to-transact
+    let amountOfCashLeft [cash] of me - amount-to-transact
     let amountOfCreditToSpend 0
     if amountOfCashLeft < 0 [
       set amountOfCashToSpend [cash] of me
-      set amountOfCreditToSpend amountToTransact - amountOfCashToSpend
+      set amountOfCreditToSpend amount-to-transact - amountOfCashToSpend
     ]
 
-    ask otherperson [ set cash ([cash] of otherperson + amountToTransact) ]
+    ask otherperson [ set cash ([cash] of otherperson + amount-to-transact) ]
     ask me [ set cash ([cash] of me - amountOfCashToSpend) ]
     ask me [ set credit ([credit] of me - amountOfCreditToSpend) ]
-    ask me [ set spentcredit ([spentcredit] of me + amountOfCreditToSpend) ]
+    ask me [ set debt ([debt] of me + amountOfCreditToSpend) ]
 
-    let sellGoodServiceOrFinancialAsset purchaseType
-    if [services] of me < 5 [
-      set sellGoodServiceOrFinancialAsset 1
-    ]
-    if [goods] of me < 5 [
-      set sellGoodServiceOrFinancialAsset 0
-    ]
+    let amountOfGoodsToBuy amount-to-transact
 
-    let amountOfGoodsToBuy 0
-    let amountOfServicesToBuy 0
-    let amountOfFinancialAssetsToBuy 0
-
-    if sellGoodServiceOrFinancialAsset = 0 [
-      set amountOfGoodsToBuy amountToTransact
-      if [goods] of otherperson < amountOfGoodsToBuy [
-        set amountOfGoodsToBuy [goods] of otherperson
-        set amountOfServicesToBuy (amountToTransact - amountOfGoodsToBuy)
-        if [services] of otherperson < amountOfServicesToBuy [
-          set amountOfServicesToBuy [services] of otherperson
-          set amountOfFinancialAssetsToBuy (amountToTransact - amountOfGoodsToBuy - amountOfServicesToBuy)
-        ]
-      ]
-    ]
-
-    if sellGoodServiceOrFinancialAsset = 1 [
-      set amountOfServicesToBuy amountToTransact
-      if [services] of otherperson < amountOfServicesToBuy [
-        set amountOfServicesToBuy [services] of otherperson
-        set amountOfGoodsToBuy (amountToTransact - amountOfServicesToBuy)
-        if [goods] of otherperson < amountOfGoodsToBuy [
-          set amountOfGoodsToBuy [goods] of otherperson
-          set amountOfFinancialAssetsToBuy (amountToTransact - amountOfServicesToBuy - amountOfGoodsToBuy)
-        ]
-      ]
-    ]
-
-    if sellGoodServiceOrFinancialAsset = 2 [
-      set amountOfFinancialAssetsToBuy amountToTransact
-      if [financialassets] of otherperson < amountOfFinancialAssetsToBuy [
-        set amountOfFinancialAssetsToBuy [financialassets] of otherperson
-        set amountOfServicesToBuy (amountToTransact - amountOfFinancialAssetsToBuy)
-        if [services] of otherperson < amountOfServicesToBuy [
-          set amountOfServicesToBuy [services] of otherperson
-          set amountOfGoodsToBuy (amountToTransact - amountOfFinancialAssetsToBuy - amountOfServicesToBuy)
-        ]
-      ]
-    ]
-
-    let transaction-receipt (word "T-" [who] of me "->" [who] of otherperson "-" amountOfGoodsToBuy ":" amountOfServicesToBuy ":" amountOfFinancialAssetsToBuy "-")
+    let transaction-receipt (word "T-" [who] of me "->" [who] of otherperson ":" amountOfGoodsToBuy " ")
 
     ask otherperson [ set goods (goods - amountOfGoodsToBuy) ]
     ask me [ set goods (goods + amountOfGoodsToBuy) ]
-    ask otherperson [ set services (services - amountOfServicesToBuy) ]
-    ask me [ set services (services + amountOfServicesToBuy) ]
-    ask otherperson [ set financialassets (financialassets - amountOfFinancialAssetsToBuy) ]
-    ask me [ set financialassets (financialassets + amountOfFinancialAssetsToBuy) ]
     set transaction-receipts word transaction-receipts transaction-receipt
-
-    if ((amountOfGoodsToBuy + amountOfServicesToBuy + amountOfFinancialAssetsToBuy) > 0) [
-       set number-of-transactions number-of-transactions + 1
-    ]
-
+    set number-of-transactions-in-tick number-of-transactions-in-tick + 1
   ]
 end
 
-to-report totalCashCredit [me]
+to-report total-cash-credit [me]
  report [cash] of me + [credit] of me
 end
 
-to-report totalGoodsServicesFinanicalAssets [me]
- report [goods] of me + [services] of me + [financialassets] of me
-end
-
 to-report netWorth [me]
- report [goods] of me + [services] of me + [financialassets] of me
+ report [goods] of me + [cash] of me
 end
 
 
@@ -194,10 +161,6 @@ to run-unit-tests
   let results ""
   let test-count 0
   if ("" != (test-transact-goods)) [ set results (word results (test-transact-goods)) ]
-  set test-count test-count + 1
-  if ("" != (test-transact-services)) [ set results (word results (test-transact-services)) ]
-  set test-count test-count + 1
-  if ("" != (test-transact-goods-fallover)) [ set results (word results (test-transact-goods-fallover)) ]
   set test-count test-count + 1
   if ("" != (test-borrow)) [ set results (word results (test-borrow)) ]
   set test-count test-count + 1
@@ -212,105 +175,32 @@ to-report test-transact-goods
   create-people 1 [
     set cash 10
     set credit 0
-    set spentcredit 0
+    set debt 0
     set goods 10
-    set services 10
-    set financialassets 10
     set spendinghabit 3
   ]
   create-people 1 [
     set cash 10
     set credit 0
-    set spentcredit 0
+    set debt 0
     set goods 10
-    set services 10
-    set financialassets 10
   ]
   let me (person 0)
   let otherperson (person 1)
-  transact me otherperson 1 0
+  transact me otherperson 7
   if ([cash] of me != 7) [ set results (word results " Expected my cash to decrease from 10 to 7 but was " [cash] of me)  ]
   if ([goods] of me != 13) [ set results (word results " Expected my goods to increase from 10 to 13 but was " [goods] of me)  ]
   if ([cash] of otherperson != 13) [ set results (word results " Expected others cash to increase from 10 to 13 but was " [cash] of otherperson)  ]
   if ([goods] of otherperson != 7) [ set results (word results " Expected others goods to decrease from 10 to 7 but was " [goods] of otherperson ) ]
 
-  if (results != "" ) [ set results (word "FAIL test-transact-goods " results) ]
-  report results
-end
-
-to-report test-transact-services
-  clear-all
-  let results ""
-  create-people 1 [
-    set cash 10
-    set credit 0
-    set spentcredit 0
-    set goods 10
-    set services 10
-    set financialassets 10
-    set spendinghabit 3
-  ]
-  create-people 1 [
-    set cash 10
-    set credit 0
-    set spentcredit 0
-    set goods 10
-    set services 10
-    set financialassets 10
-  ]
-  let me (person 0)
-  let otherperson (person 1)
-  transact me otherperson 1 1
-  if ([cash] of me != 7) [ set results (word results " Expected my cash to decrease from 10 to 7 but was " [cash] of me)  ]
-  if ([goods] of me != 10) [ set results (word results " Expected my goods to stay at 10 but was " [goods] of me)  ]
-  if ([services] of me != 13) [ set results (word results " Expected my services to increase from 10 to 13 but was " [services] of me)  ]
-  if ([cash] of otherperson != 13) [ set results (word results " Expected others cash to increase from 10 to 13 but was " [cash] of otherperson)  ]
-  if ([goods] of otherperson != 10) [ set results (word results " Expected others goods to stay at 10 but was " [goods] of otherperson ) ]
-  if ([services] of otherperson != 7) [ set results (word results " Expected others services to decrease from 10 to 7 but was " [services] of otherperson ) ]
-
-  if (results != "" ) [ set results (word "FAIL test-transact-services " results) ]
-  report results
-end
-
-to-report test-transact-goods-fallover
-  clear-all
-  let results ""
-  create-people 1 [
-    set cash 10
-    set credit 0
-    set spentcredit 0
-    set goods 10
-    set services 10
-    set financialassets 10
-    set spendinghabit 4
-  ]
-  create-people 1 [
-    set cash 10
-    set credit 0
-    set spentcredit 0
-    set goods 1
-    set services 2
-    set financialassets 10
-  ]
-  let me (person 0)
-  let otherperson (person 1)
-  transact me otherperson 1 1
-  if ([cash] of me != 6) [ set results (word results " Expected my cash to decrease from 10 to 6 but was " [cash] of me)  ]
-  if ([goods] of me != 11) [ set results (word results " Expected my goods to increase from 10 to 11 but was " [goods] of me)  ]
-  if ([services] of me != 12) [ set results (word results " Expected my services to increase from 10 to 12 but was " [services] of me)  ]
-  if ([financialassets] of me != 11) [ set results (word results " Expected my services to increase from 10 to 11 but was " [services] of me)  ]
-  if ([cash] of otherperson != 14) [ set results (word results " Expected others cash to increase from 10 to 14 but was " [cash] of otherperson)  ]
-  if ([goods] of otherperson != 0) [ set results (word results " Expected others goods to decrease from 1 to 0 but was " [goods] of otherperson ) ]
-  if ([services] of otherperson != 0) [ set results (word results " Expected others services to decrease from 2 to 0 but was " [services] of otherperson ) ]
-  if ([financialassets] of otherperson != 9) [ set results (word results " Expected others services to decrease from 10 to 9 but was " [financialassets] of otherperson ) ]
-
-  if (results != "" ) [ set results (word "FAIL test-transact-services " results) ]
+  ifelse (results != "" ) [ set results (word "FAIL test-transact-goods " results) ] [set results "PASS test-transact-goods "]
   report results
 end
 
 
 to-report test-borrow
   let results ""
+  ifelse (results != "" ) [ set results (word "FAIL test-borrow " results) ] [set results "PASS test-borrow "]
   report results
 end
 @#$#@#$#@
@@ -395,8 +285,8 @@ NIL
 PLOT
 8
 159
-183
-288
+178
+279
 Person
 tick
 value
@@ -406,13 +296,11 @@ value
 20.0
 true
 true
-"" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]\nif (nobody != person plot-who) [\nset plot-cash ([cash] of person plot-who)\nset plot-credit ([credit] of person plot-who)\nset plot-spentcredit ([spentcredit] of person plot-who)\nset plot-goods ([goods] of person plot-who)\nset plot-services ([services] of person plot-who)\nset plot-financialassets ([financialassets] of person plot-who)\n]"
+"" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]\nif (nobody != person plot-who) [\nset plot-cash ([cash] of person plot-who)\nset plot-credit ([credit] of person plot-who)\nset plot-debt ([debt] of person plot-who)\nset plot-goods ([goods] of person plot-who)\n]"
 PENS
 " cash" 1.0 0 -13840069 true "" "plot plot-cash"
 " credit" 1.0 0 -13791810 true "" "plot plot-credit"
-" spentcredit" 1.0 0 -7500403 true "" "plot plot-spentcredit"
-" services" 1.0 0 -2674135 true "" "plot plot-services"
-" financialassets" 1.0 0 -1191199 true "" "plot plot-financialassets"
+" spentcredit" 1.0 0 -7500403 true "" "plot plot-debt"
 " goods" 1.0 0 -6459832 true "" "plot plot-goods"
 
 SLIDER
@@ -423,23 +311,8 @@ SLIDER
 goods-degrade-factor
 goods-degrade-factor
 0
-2
-1
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-63
-119
-175
-152
-services-degrade-factor
-services-degrade-factor
-0
-2
-1
+4
+0.9
 0.1
 1
 NIL
@@ -465,36 +338,18 @@ number-of-people
 number-of-people
 0
 100
-25
+3
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-9
-293
-184
-460
-Txns
-Ticks
-TXNS
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot number-of-transactions"
-
-PLOT
-190
-295
-388
-459
-GDP
+8
+288
+206
+452
+GDP per Tick
 Ticks
 GDP
 0.0
@@ -522,7 +377,8 @@ An attempt to understand the interaction of credit in the marketplace.
 
 ## THINGS TO NOTICE
 
-(suggested things for the user to notice while running the model)
+Liquidity Matters: If you set the number of lenders to 0 and edit one person to have a hustle of 10 and a spending habit of 0 that person will hoard cash. As that person hoards the cash no one else can transact. Hoarders of cash cause there to be less transactions in a economy.
+
 
 ## THINGS TO TRY
 
