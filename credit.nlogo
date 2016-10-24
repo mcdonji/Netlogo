@@ -10,7 +10,7 @@ globals [
   min-consumable-goods-tolerable
   loan-length
   transaction-volume
-  print-transaction-recepts?
+  initial-lender-cash
   plot-cash ; optimize plot
   plot-credit
   plot-debt
@@ -38,7 +38,6 @@ people-own
 lenders-own
 [
   cash
-  asset
 ]
 
 links-own
@@ -54,8 +53,7 @@ to setup
   initialize-variables
   create-people number-of-people [setup-people]
   create-lenders num-lenders [
-    set cash 1000
-    set asset 0
+    set cash initial-lender-cash
     set shape "house"
     setxy random-xcor random-ycor
   ]
@@ -72,6 +70,7 @@ to initialize-variables
   set min-consumable-goods-tolerable 10
   set loan-length 10
   set print-transaction-recepts? false
+  set initial-lender-cash 100
 end
 
 to setup-people
@@ -97,23 +96,7 @@ to go
 
   ask lenders
   [
-    let lender self
-    ask my-links with [loan-maturity-tick <= ticks]
-    [
-      let loan self
-      ask lender [ set cash cash + [loan-amount-with-interest] of loan ]
-      ask person with-person
-      [
-        set cash cash - [loan-amount-with-interest] of loan
-        set debt debt - [loan-amount] of loan
-        if (debt < 0)
-        [
-          set credit credit + debt
-          set debt 0
-        ]
-      ]
-      die
-    ]
+    settle-loans self ticks
   ]
 
   ask people
@@ -128,14 +111,23 @@ to go
       let amount-to-transact-per-person ((total-cash-credit self) / others-count)
       ask people-on patches in-radius radius
       [
-        transact myself self amount-to-transact-per-person
+        transact myself self amount-to-transact-per-person ticks
       ]
     ]
 
-    ask lenders-on patches in-radius radius
-    [
-      borrow myself
+    if (allow-lending?) [
+      let lenders-count (count lenders-on patches in-radius radius)
+      if (lenders-count > 0) [
+        let amount-to-sell-to-lender (produced-goods / lenders-count)
+        ask lenders-on patches in-radius radius
+        [
+          borrow myself self interest-rate ticks
+          ; Lenders must also participate in economy or all the cash in the system will be removed by the lenders.
+          lender-transact self myself amount-to-sell-to-lender
+        ]
+      ]
     ]
+
     set production productivity + (random-normal hustle (0.1 * hustle))
     set produced-goods (produced-goods + production)
     ; stop producing goods if person cannot sell them
@@ -161,35 +153,41 @@ to go
 
 end
 
-to borrow [me]
-  let possible-production ((([production] of me) * loan-length) + [produced-goods] of me - [debt] of me)
-  let possible-amount-to-borrow possible-production / loan-length
-  ; If the person could possibly borrow
-  if  (possible-production > interest-rate * loan-length)
-    ; and the person wants to buy more stuff
-    and ([consumable-goods] of me) < min-consumable-goods-tolerable
-    and (cash > possible-amount-to-borrow)
-    and ((link who [who] of me) = nobody)
-    and ([cash] of me > 0)
+to settle-loans [lender thetick]
+  ask ([my-links] of lender) with [loan-maturity-tick <= thetick]
   [
-    ;print (word "B-" [who] of me "->" who ":" possible-amount-to-borrow ":" (interest-rate * loan-length) ":" [consumable-goods] of me)
-    ask me [ set credit ([credit] of me + possible-amount-to-borrow) ]
-    set cash (cash - possible-amount-to-borrow)
-    create-link-with me
-    let debt-link link who [who] of me
-    ask debt-link
+    let loan self
+    ask lender [ set cash cash + [loan-amount-with-interest] of loan ]
+    ask person with-person
     [
-      ;set hidden? true
-      set with-person [who] of me
-      set loan-amount possible-amount-to-borrow
-      set loan-amount-with-interest possible-amount-to-borrow + (interest-rate * loan-length)
-      set loan-maturity-tick ticks + loan-length
+      set cash cash - [loan-amount-with-interest] of loan
+      set debt debt - [loan-amount] of loan
+      if (debt < 0)
+      [
+        set credit credit + debt
+        set debt 0
+      ]
     ]
+    die
   ]
 end
 
 
-to transact [me otherperson amount-to-transact]
+; Lender Transactions are a way to get cash back into the hands of the people
+; This is a short cut to creating a government that prints money to purchase goods-produced
+to lender-transact [lender otherperson amount-to-transact]
+  if ([cash] of lender > initial-lender-cash)
+  [
+    ask otherperson [ set cash ([cash] of otherperson + amount-to-transact) ]
+    ask lender [ set cash ([cash] of lender - amount-to-transact) ]
+    ask otherperson [ set produced-goods (produced-goods - amount-to-transact) ]
+    let transaction-receipt (word " TL-" [who] of lender "->" [who] of otherperson ":" amount-to-transact)
+    set transaction-receipts word transaction-receipts transaction-receipt
+    set transaction-volume transaction-volume + amount-to-transact
+  ]
+end
+
+to transact [me otherperson amount-to-transact thetick]
   let other-person-is-not-me ([who] of me != [who] of otherperson)
   if (([produced-goods] of otherperson) < amount-to-transact)
   [
@@ -213,7 +211,7 @@ to transact [me otherperson amount-to-transact]
 
     let amount-of-goods-to-buy amount-to-transact
 
-    let transaction-receipt (word "T-" [who] of me "->" [who] of otherperson ":" amount-of-goods-to-buy " cash:" amount-of-cash-to-spend " credit:" amount-of-credit-to-spend)
+    let transaction-receipt (word " T@" thetick "-" [who] of me "->" [who] of otherperson ":" amount-of-goods-to-buy " cash:" amount-of-cash-to-spend " credit:" amount-of-credit-to-spend)
 
     ask otherperson [ set produced-goods (produced-goods - amount-of-goods-to-buy) ]
     ask me [ set consumable-goods (consumable-goods + amount-of-goods-to-buy) ]
@@ -221,6 +219,40 @@ to transact [me otherperson amount-to-transact]
     set transaction-volume transaction-volume + amount-of-goods-to-buy
   ]
 end
+
+to borrow [me lender rate thetick]
+  let possible-production ((([production] of me) * loan-length) + [produced-goods] of me - [debt] of me)
+  let possible-amount-to-borrow possible-production / 10
+  ; If the person could possibly borrow
+  if  (possible-production > rate * loan-length)
+  ;  ; and the person wants to buy more stuff
+    and ([consumable-goods] of me) < min-consumable-goods-tolerable
+    and ([cash] of lender > possible-amount-to-borrow)
+    and ((link [who] of lender [who] of me) = nobody)
+    and ([cash] of me > 0)
+  [
+    if (print-transaction-recepts? )
+    [
+      print (word "B@" thetick "-" [who] of me "->" [who] of lender ":" possible-amount-to-borrow ":" (rate * loan-length) ":" [consumable-goods] of me)
+    ]
+    ask me [ set credit ([credit] of me + possible-amount-to-borrow) ]
+    ask lender
+    [
+      set cash (cash - possible-amount-to-borrow)
+      create-link-with me
+      let debt-link link who [who] of me
+      ask debt-link
+      [
+        ;set hidden? true
+        set with-person [who] of me
+        set loan-amount possible-amount-to-borrow
+        set loan-amount-with-interest possible-amount-to-borrow + (interest-rate * loan-length)
+        set loan-maturity-tick thetick + loan-length
+      ]
+    ]
+  ]
+end
+
 
 to-report total-cash-credit [me]
  report [cash] of me + [credit] of me
@@ -246,6 +278,10 @@ end
 
 
 ; Unit Tests
+to ut
+  run-unit-tests
+end
+
 to run-unit-tests
   clear-all
   reset-ticks
@@ -253,10 +289,16 @@ to run-unit-tests
   print "Executing Unit Tests"
   let results ""
   let test-count 0
+
   if ("" != (test-transact-goods)) [ set results (word results (test-transact-goods)) ]
   set test-count test-count + 1
+  ask people [ die]
+  ask lenders [ die]
+
   if ("" != (test-borrow)) [ set results (word results (test-borrow)) ]
   set test-count test-count + 1
+  ask people [ die]
+  ask lenders [ die]
 
   print (word test-count " run - " results)
 end
@@ -281,7 +323,7 @@ to-report test-transact-goods
   ]
   let me (person 0)
   let otherperson (person 1)
-  transact me otherperson 3
+  transact me otherperson 3 1
   if ([cash] of me != 7) [ set results (word results " Expected my cash to decrease from 10 to 7 but was " [cash] of me)  ]
   if ([consumable-goods] of me != 13) [ set results (word results " Expected my consumable-goods to increase from 10 to 13 but was " [consumable-goods] of me)  ]
   if ([cash] of otherperson != 13) [ set results (word results " Expected others cash to increase from 10 to 13 but was " [cash] of otherperson)  ]
@@ -293,19 +335,61 @@ end
 
 
 to-report test-borrow
+  clear-all
+
   let results ""
+  create-people 1
+  [
+    set cash 10
+    set credit 0
+    set debt 0
+    set produced-goods 4
+    set production 2
+    set consumable-goods 10
+  ]
+  create-lenders 1
+  [
+    set cash 8
+  ]
+  let me (person 0)
+  let alender (lender 1)
+
+  set loan-length 3
+  set initial-lender-cash 5
+  set min-consumable-goods-tolerable 20
+  borrow me alender 0.1 1
+
+  if ([cash] of me != 10) [ set results (word results " Expected my cash to remain at 10 but was " [cash] of me)  ]
+  if ([cash] of alender != 7) [ set results (word results " Expected lenders cash to reduced from 8 to 7 but was " [cash] of alender)  ]
+  if ([credit] of me != 1) [ set results (word results " Expected my credit to increase from 0 to 1 but was " [credit] of me)  ]
+
+  let loan one-of links
+  if (count links != 1) [ set results (word results " Expected there to be one link that is a loan but was " count links)  ]
+  if ([loan-amount] of loan != 1) [ set results (word results " Expected my loan-amount of loan to be 1 but was " [loan-amount] of loan)  ]
+  if ([loan-maturity-tick] of loan != 4) [ set results (word results " Expected my loan-maturity-tick of loan to be 4 but was " [loan-maturity-tick] of loan)  ]
+
+  settle-loans alender 4
+  let loan-completed one-of links
+  if (count links != 0) [ set results (word results " Expected loan to be fufuilled but was " count links)  ]
+
+  if ([credit] of me != 0) [ set results (word results " Expected my credit to decrease from 1 to 0 but was " [credit] of me)  ]
+
+
   ifelse (results != "" ) [ set results (word "FAIL test-borrow " results) ] [set results "PASS test-borrow "]
   report results
 end
+
+
+
 @#$#@#$#@
 GRAPHICS-WINDOW
 189
 11
-445
-288
+473
+316
 16
 16
-7.455
+8.303030303030303
 1
 10
 1
@@ -381,7 +465,7 @@ PLOT
 194
 175
 314
-Person
+Person Ex
 tick
 value
 0.0
@@ -392,11 +476,11 @@ true
 true
 "" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]\nif (nobody != person plot-who) [\nset plot-cash ([cash] of person plot-who)\nset plot-credit ([credit] of person plot-who)\nset plot-debt ([debt] of person plot-who)\nset plot-produced-goods ([produced-goods] of person plot-who)\nset plot-consumable-goods ([consumable-goods] of person plot-who)\n]"
 PENS
-" cash" 1.0 0 -13840069 true "" "plot plot-cash"
-" credit" 1.0 0 -13791810 true "" "plot plot-credit"
-" debt" 1.0 0 -7500403 true "" "plot plot-debt"
-" consumable" 1.0 0 -6459832 true "" "plot plot-consumable-goods"
-"produced" 1.0 0 -2674135 true "" "plot plot-produced-goods"
+" Cash" 1.0 0 -13840069 true "" "plot plot-cash"
+" Credit" 1.0 0 -13791810 true "" "plot plot-credit"
+"Debt" 1.0 0 -7500403 true "" "plot plot-debt"
+"Consumable" 1.0 0 -6459832 true "" "plot plot-consumable-goods"
+"Produced" 1.0 0 -2674135 true "" "plot plot-produced-goods"
 
 SLIDER
 62
@@ -407,7 +491,7 @@ goods-degrade-factor
 goods-degrade-factor
 0
 4
-0.7
+2
 0.1
 1
 NIL
@@ -419,7 +503,7 @@ INPUTBOX
 58
 189
 plot-who
-1
+0
 1
 0
 Number
@@ -465,8 +549,8 @@ SLIDER
 interest-rate
 interest-rate
 0
-1
-0.05
+10
+10
 0.01
 1
 NIL
@@ -481,7 +565,7 @@ num-lenders
 num-lenders
 0
 10
-3
+9
 1
 1
 NIL
@@ -505,10 +589,62 @@ false
 PENS
 "default" 1.0 0 -16777216 true "" "plot transaction-volume"
 
+PLOT
+358
+325
+518
+455
+Total Cash
+Ticks
+Cash
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"People" 1.0 0 -13840069 true "" "plot sum [cash] of people"
+"Lenders" 1.0 0 -14835848 true "" "plot sum [cash] of lenders"
+
+SWITCH
+480
+11
+654
+44
+print-transaction-recepts?
+print-transaction-recepts?
+1
+1
+-1000
+
+SWITCH
+481
+48
+653
+81
+allow-lending?
+allow-lending?
+0
+1
+-1000
+
+TEXTBOX
+489
+101
+639
+325
+People are producing goods\nselling those goods to each\nother. \nPeople are RED if they are in the bottom third of cash reserves.\nPeople are YELLO if they are in the middle third of cash reserves.\nPeople are BLUE if they are in the top third of cash reserves\n\nHouses are lenders. Lenders \nwill lend people money if they think they can pay it back.\n\n
+11
+0.0
+1
+
 @#$#@#$#@
 ## WHAT IS IT?
 
-An attempt to understand the interaction of credit in the marketplace.
+An attempt to understand the interaction of credit in an economy where people are producing goods and selling to eachother. The scope is the minimal amount to be able to see that increasing available credit causes an increase in the production of goods.
+
 
 ## HOW IT WORKS
 
