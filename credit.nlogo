@@ -1,22 +1,26 @@
 globals [
+  ; model globals
   transaction-receipts  ; receipts are a way to visualize who is transacting how much with who
-  gdp
-  max-defaults
-  radius ; the radius in which people will transact. Usefull to set to 20 if you are investigating a small number of people in economy
-  productivity-growth
-  productivity
-  max-goods-production
-  total-cash
-  min-consumable-goods-tolerable
-  loan-length
-  transaction-volume
-  initial-lender-cash
-  plot-cash ; optimize plot
+  gdp                   ; representation of the gross domestic product of the economy
+  radius                ; the radius in which people will transact. Useful to set to 20 if you are investigating a small number of people in economy
+  productivity-growth   ; a default to represent the growth in productivity over time, people get smarter and find better ways to do things
+  productivity          ; the productivity at a given moment in time
+  max-goods-production  ; the maximum goods a person will produce, production is only valuable if that production can actually be sold
+  total-cash            ; the total cash of all people, used to calculate the relative wealth of a person
+  min-consumable-goods-tolerable ; the level of consumable goods at which a person will want or attempt to get a loan
+  loan-length           ; how long a loan will be outstanding before it must be settled
+  transaction-volume    ; a measure of how many transactions take place in each time step
+  initial-lender-cash   ; the amount of cash each lender has to begin with
+  goods-degrade-factor  ; how quickly consumable goods degrade. If a person has few consumable-goods they attempt to take out a loan.
+
+  ; optimize plot
+  plot-cash
   plot-credit
   plot-debt
   plot-defaults
   plot-produced-goods
   plot-consumable-goods
+  ; for unit tests
   unit-test-results
 ]
 
@@ -40,6 +44,7 @@ lenders-own
   cash
 ]
 
+; links are loans
 links-own
 [
   with-person
@@ -60,9 +65,10 @@ to setup
   reset-ticks
 end
 
+; variables that typically we don't need to play with but can be manipulated via
+; the repl to explore the model
 to initialize-variables
   set goods-degrade-factor 0.7
-  set max-defaults 2
   set radius 5
   set productivity 0.01
   set productivity-growth 0.001
@@ -84,6 +90,7 @@ to setup-people
     set production hustle
     set shape "person"
     setxy random-xcor random-ycor
+    set-wealth-color
 end
 
 to go
@@ -378,15 +385,12 @@ to-report test-borrow
   ifelse (results != "" ) [ set results (word "FAIL test-borrow " results) ] [set results "PASS test-borrow "]
   report results
 end
-
-
-
 @#$#@#$#@
 GRAPHICS-WINDOW
-189
-11
-473
-316
+198
+10
+482
+315
 16
 16
 8.303030303030303
@@ -410,9 +414,9 @@ ticks
 30.0
 
 BUTTON
-122
+132
 81
-177
+188
 114
 Go
 go
@@ -429,7 +433,7 @@ NIL
 BUTTON
 5
 81
-61
+72
 115
 Setup
 setup
@@ -444,9 +448,9 @@ NIL
 1
 
 BUTTON
-64
+75
 81
-119
+130
 114
 Go
 go
@@ -463,9 +467,9 @@ NIL
 PLOT
 8
 194
-175
+188
 314
-Person Ex
+Person Example
 tick
 value
 0.0
@@ -474,7 +478,7 @@ value
 20.0
 true
 true
-"" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]\nif (nobody != person plot-who) [\nset plot-cash ([cash] of person plot-who)\nset plot-credit ([credit] of person plot-who)\nset plot-debt ([debt] of person plot-who)\nset plot-produced-goods ([produced-goods] of person plot-who)\nset plot-consumable-goods ([consumable-goods] of person plot-who)\n]"
+"" "if (ticks > 20) [\nset-plot-x-range (ticks - 20) ticks \n]\nif (nobody != person person-example) [\nset plot-cash ([cash] of person person-example)\nset plot-credit ([credit] of person person-example)\nset plot-debt ([debt] of person person-example)\nset plot-produced-goods ([produced-goods] of person person-example)\nset plot-consumable-goods ([consumable-goods] of person person-example)\n]"
 PENS
 " Cash" 1.0 0 -13840069 true "" "plot plot-cash"
 " Credit" 1.0 0 -13791810 true "" "plot plot-credit"
@@ -482,52 +486,37 @@ PENS
 "Consumable" 1.0 0 -6459832 true "" "plot plot-consumable-goods"
 "Produced" 1.0 0 -2674135 true "" "plot plot-produced-goods"
 
-SLIDER
-62
-119
-177
-152
-goods-degrade-factor
-goods-degrade-factor
-0
-4
-2
-0.1
-1
-NIL
-HORIZONTAL
-
 INPUTBOX
 7
 118
-58
+72
 189
-plot-who
+person-example
 0
 1
 0
 Number
 
 SLIDER
-5
+4
 10
-177
+188
 43
 number-of-people
 number-of-people
 0
 100
-100
+6
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-8
-323
-176
-453
+9
+322
+200
+451
 GDP per Tick
 Ticks
 GDP
@@ -542,40 +531,40 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot gdp"
 
 SLIDER
-62
+74
 155
-176
+188
 188
 interest-rate
 interest-rate
 0
 10
 10
-0.01
+0.1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-5
+4
 45
-177
+188
 78
 num-lenders
 num-lenders
 0
 10
-9
+1
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-191
-324
-351
-454
+215
+323
+401
+452
 Transaction Volume
 Ticks
 Vol
@@ -590,10 +579,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot transaction-volume"
 
 PLOT
-358
-325
-518
-455
+414
+323
+629
+452
 Total Cash
 Ticks
 Cash
@@ -609,10 +598,10 @@ PENS
 "Lenders" 1.0 0 -14835848 true "" "plot sum [cash] of lenders"
 
 SWITCH
-480
-11
-654
-44
+495
+12
+633
+45
 print-transaction-recepts?
 print-transaction-recepts?
 1
@@ -620,22 +609,22 @@ print-transaction-recepts?
 -1000
 
 SWITCH
-481
-48
-653
-81
+496
+49
+634
+82
 allow-lending?
 allow-lending?
-0
+1
 1
 -1000
 
 TEXTBOX
-489
-101
-639
-325
-People are producing goods\nselling those goods to each\nother. \nPeople are RED if they are in the bottom third of cash reserves.\nPeople are YELLO if they are in the middle third of cash reserves.\nPeople are BLUE if they are in the top third of cash reserves\n\nHouses are lenders. Lenders \nwill lend people money if they think they can pay it back.\n\n
+497
+91
+647
+315
+People are producing goods\nselling those goods to each\nother. \nPeople are RED if they are in the bottom third of cash reserves.\nPeople are YELLOW if they are in the middle third of cash reserves.\nPeople are BLUE if they are in the top third of cash reserves\n\nHouses are lenders. Lenders \nwill lend people money if they think they can pay it back.\n\n
 11
 0.0
 1
@@ -643,41 +632,55 @@ People are producing goods\nselling those goods to each\nother. \nPeople are RED
 @#$#@#$#@
 ## WHAT IS IT?
 
-An attempt to understand the interaction of credit in an economy where people are producing goods and selling to eachother. The scope is the minimal amount to be able to see that increasing available credit causes an increase in the production of goods.
+An attempt to understand the interaction of credit in an economy where people are producing goods and selling to eachother. The scope is the minimal amount to be able to see that increasing available credit by lowering interest rates causes an increase in the production of goods while an economy is transacting.
 
+The original idea stemed from watching Ray Dalio's lecture on how the economy works.
+https://www.youtube.com/watch?v=PHe0bXAIuk0&feature=youtu.be
 
 ## HOW IT WORKS
 
-(what rules the agents use to create the overall behavior of the model)
+There are three types of agents in this model, People and Lenders and Loans. People are represented as a breed with attributes cash, credit, debt, defaults, produced-goods, consumable-goods, hustle, production. Lenders are represented by a breed with a single attribute of cash. Loans are represented as links between People and Lenders with attributes of with-person, loan-amount, loan-amount-with-interest, loan-maturity-tick.
+
+For each time step there are four general steps.
+1. Lenders force People to pay back loans that are due
+2. People transact with eachother attempting to sell the goods they have produced and buy goods if they do not have enough consumable goods.
+3. People attempt to get a loan if they need more money to purchase goods.
+4. People produce more goods to sell on the next time step.
+
+Note that the interest rate controls just how many loans are issued. Low interest means more loans are issued and high interest means less loans are issued.
+
+The environment is just spatial and is used as a way to have random interactions.
+
+There is really just one input that is offered on the GUI to play with, the interest rate. There are several more inputs that can be varied to investigate the model further and can be seen in the initialize-variables method.
+
+The most interesting output is the gdp per tick. This is the measure of production that we want to influence with the interest rate.
+
 
 ## HOW TO USE IT
 
-(how to use the model, including a description of each of the items in the Interface tab)
+Try using the default settings and while the model is running drag the interest slider down to zero and back up to 10. You will notice that loans, represented by the link lines, start to happen and the gdp goes up then stabilizes again. This is essentially demonstrating that credit seems to not actually create more production but allows people to draw the existing pool of produced goods more quickly.
+
 
 ## THINGS TO NOTICE
 
-Liquidity Matters: If you set the number of lenders to 0 and edit one person to have a hustle of 10 and a spending habit of 0 that person will hoard cash. As that person hoards the cash no one else can transact. Hoarders of cash cause there to be less transactions in a economy.
+Liquidity Matters: Comment out the line where the lenders-transact and run the model with a low interest rate. When the lenders are just collecting cash but not participating in the economy they hoard all the cash in the system, no one else can transact. Hoarders of cash cause there to be less transactions in a economy.
 
 
 ## THINGS TO TRY
 
-(suggested things for the user to try to do (move sliders, switches, etc.) with the model)
+Try playing with the interest rate slider while the model is running.
 
 ## EXTENDING THE MODEL
 
-(suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
-
-## NETLOGO FEATURES
-
-(interesting or unusual features of NetLogo that the model uses, particularly in the Code tab; or where workarounds were needed for missing features)
+It would be great to identify if a person uses their credit to do something that makes them more productive that credit could be a positive influence rather than just drawing down on current produced goods.
 
 ## RELATED MODELS
 
-(models in the NetLogo Models Library and elsewhere which are of related interest)
+Wealth Distribution model and the Bank Reserves model are both very similar but without the credit concept.
 
 ## CREDITS AND REFERENCES
 
-(a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
+Made by Jim McDonald (mcdonji)
 @#$#@#$#@
 default
 true
